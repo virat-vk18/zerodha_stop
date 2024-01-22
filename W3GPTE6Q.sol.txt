@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// OpenZeppelin interfaces
+import "@openzeppelin/contracts@4.9.3/token/ERC20/IERC20.sol";
+
+contract SimpleSwap {
+    IERC20 public token;
+    uint256 public rate;
+
+    event Swap(address indexed user, string swapType, uint256 amount, uint256 rate);
+
+    constructor(address _tokenAddress, uint256 _rate) {
+        require(_tokenAddress != address(0), "Token address cannot be the zero address.");
+        require(_rate > 0, "Rate must be greater than zero.");
+        token = IERC20(_tokenAddress);
+        rate = _rate;
+    }
+
+    // To receive ETH when `swapTokensForEther` is called
+    receive() external payable {}
+
+    // Users can call this function to swap ETH for tokens
+    function swapEtherForTokens() external payable {
+        uint256 tokenAmount = msg.value * rate;
+        require(token.balanceOf(address(this)) >= tokenAmount, "Not enough tokens in the reserve.");
+        
+        emit Swap(msg.sender, "Ether for Tokens", tokenAmount, rate);
+        token.transfer(msg.sender, tokenAmount);
+    }
+
+    // Users can call this function to swap tokens for ETH
+    function swapTokensForEther(uint256 _tokenAmount) external {
+        uint256 etherAmount = _tokenAmount / rate;
+        require(address(this).balance >= etherAmount, "Not enough ETH in the reserve.");
+        
+        require(token.transferFrom(msg.sender, address(this), _tokenAmount), "Failed to transfer tokens.");
+        
+        emit Swap(msg.sender, "Tokens for Ether", etherAmount, rate);
+        (bool sent, ) = msg.sender.call{value: etherAmount}("");
+        require(sent, "Failed to send Ether");
+    }
+
+    // Function to set a new rate, could be restricted to owner only
+    function setRate(uint256 _newRate) external {
+        // Additional checks could be implemented here
+        rate = _newRate;
+    }
+}
